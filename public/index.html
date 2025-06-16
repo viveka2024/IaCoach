@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>IA Coach Personal</title>
+</head>
+<body>
+  <h2>IA Coach Personal y Profesional</h2>
+  <textarea id="userInput" rows="4" cols="50" placeholder="Escribe aquí tu consulta..."></textarea><br>
+  <button onclick="sendMessage()">Enviar</button>
+  <h3>Respuesta:</h3>
+  <pre id="responseArea">Esperando respuesta...</pre>
+
+  <script>
+    async function sendMessage() {
+      const input = document.getElementById("userInput").value;
+      document.getElementById("responseArea").textContent = "Pensando...";
+      
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input })
+      });
+
+      const data = await res.json();
+      document.getElementById("responseArea").textContent =
+        data.reply || "Error: " + data.error;
+    }
+  </script>
+</body>
+</html>
