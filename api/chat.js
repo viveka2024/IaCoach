@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Se obtiene de las variables de entorno en Vercel
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export default async function handler(req, res) {
@@ -15,10 +15,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Crear hilo de conversación
+    // Crear hilo
     const thread = await openai.beta.threads.create();
 
-    // Añadir el mensaje del usuario al hilo
+    // Añadir mensaje del usuario
     await openai.beta.threads.messages.create(thread.id, {
       role: "user",
       content: message,
@@ -29,36 +29,47 @@ export default async function handler(req, res) {
       assistant_id: process.env.ASSISTANT_ID,
     });
 
-    // Esperar a que el asistente termine la ejecución
+    // Esperar que termine
     let status = "queued";
-    while (status !== "completed") {
+    while (status !== "completed" && status !== "failed" && status !== "cancelled") {
       const runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
       status = runStatus.status;
       if (status !== "completed") {
-        await new Promise((r) => setTimeout(r, 1000)); // Esperar 1 segundo
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
 
-    // Obtener las respuestas
-    const messages = await openai.beta.threads.messages.list(thread.id);
-    const firstMessage = messages.data?.[0]?.content?.[0]?.text?.value;
-
-    if (!firstMessage) {
-      return res.status(500).json({ error: "El asistente no devolvió una respuesta." });
+    if (status !== "completed") {
+      return res.status(500).json({ error: `La ejecución terminó con estado: ${status}` });
     }
 
-    // Éxito
-    return res.status(200).json({ reply: firstMessage });
+    // Obtener la respuesta del asistente
+    const messages = await openai.beta.threads.messages.list(thread.id);
+    const reply = messages.data?.[0]?.content?.[0]?.text?.value;
+
+    if (!reply) {
+      return res.status(500).json({ error: "El asistente no devolvió una respuesta válida." });
+    }
+
+    return res.status(200).json({ reply });
 
   } catch (error) {
     console.error("❌ Error en el servidor:", error);
 
-    // Manejo avanzado de errores si OpenAI devuelve detalles
+    let errorMsg = "Error inesperado del servidor.";
+
     if (error.response) {
-      const msg = await error.response.text();
-      return res.status(error.response.status || 500).json({ error: msg });
+      try {
+        const errorText = await error.response.text();
+        errorMsg = errorText;
+      } catch (parseErr) {
+        errorMsg = "No se pudo leer el mensaje del error de OpenAI.";
+      }
+    } else if (error.message) {
+      errorMsg = error.message;
     }
 
-    return res.status(500).json({ error: error.message || "Error inesperado del servidor." });
+    return res.status(500).json({ error: errorMsg });
   }
 }
+
