@@ -11,21 +11,35 @@
   <h3>Respuesta:</h3>
   <pre id="responseArea">Esperando respuesta...</pre>
 
-  <script>
-    async function sendMessage() {
-      const input = document.getElementById("userInput").value;
-      document.getElementById("responseArea").textContent = "Pensando...";
-      
+ <script>
+  async function sendMessage() {
+    const input = document.getElementById("userInput").value;
+    const responseArea = document.getElementById("responseArea");
+    responseArea.textContent = "Pensando...";
+
+    try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input })
+        body: JSON.stringify({ message: input }),
       });
 
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+
+      if (!res.ok) {
+        const errorText = isJson ? (await res.json()).error : await res.text();
+        responseArea.textContent = `❌ Error del servidor: ${errorText}`;
+        return;
+      }
+
       const data = await res.json();
-      document.getElementById("responseArea").textContent =
-        data.reply || "Error: " + data.error;
+      responseArea.textContent = data.reply || "Sin respuesta del asistente.";
+
+    } catch (err) {
+      responseArea.textContent = `❌ Error inesperado: ${err.message}`;
+      console.error("Fallo en el cliente:", err);
     }
-  </script>
+  }
+</script>
 </body>
 </html>
